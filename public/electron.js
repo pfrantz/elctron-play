@@ -9,7 +9,7 @@ let pythonProcess = null;
 
 // Python server parameters
 const PY_HOST = "127.0.0.1";
-const PY_PORT = 8000;
+const PY_PORT = 8080;
 const PY_LOG_LEVEL = "info";
 
 // Generate a random a SECRET_TOKEN used for communication with Python server
@@ -31,9 +31,10 @@ if (isDev) {
 }
 
 function launchPython() {
+  console.log("Starting python")
   if (isDev) {
     pythonProcess = spawn("python", [
-      ".\\py_src\\main.py",
+      "./py_src/main.py",
       "--host",
       PY_HOST,
       "--port",
@@ -44,9 +45,10 @@ function launchPython() {
       SECRET_TOKEN,
     ]);
     console.log("Python process started in dev mode");
+
   } else {
-    pythonProcess = execFile(
-      path.join(__dirname, "..\\..\\..\\py_dist\\main\\main.exe"),
+    pythonProcess = spawn(
+      path.join(__dirname, "../../../py_dist/main/main"),
       [
         "--host",
         PY_HOST,
@@ -58,8 +60,16 @@ function launchPython() {
         SECRET_TOKEN,
       ]
     );
-    console.log("Python process started in built mode");
   }
+    pythonProcess.stdout.on('data', (data) => {
+      console.log(`stdout: ${data}`);
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      console.error(`stderr: ${data}`);
+    });
+
+    console.log("Python process started in built mode");
   return pythonProcess;
 }
 
@@ -95,11 +105,11 @@ function createWindow() {
 // function once the Electron application is initialized.
 // Install REACT_DEVELOPER_TOOLS as well if isDev
 app.whenReady().then(() => {
-  if (isDev) {
+ /* if (isDev) {
     installExtension(REACT_DEVELOPER_TOOLS)
       .then((name) => console.log(`Added Extension:  ${name}`))
       .catch((error) => console.log(`An error occurred: , ${error}`));
-  }
+  }*/
   pythonProcess = launchPython();
   mainWindow = createWindow();
 });
@@ -110,6 +120,14 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on('quit', ()=> {
+  if (pythonProcess) {
+    console.log('nuking python')
+    const res =  pythonProcess.kill();
+    console.log(`python gone ${res}`)
   }
 });
 
@@ -129,7 +147,7 @@ app.on("activate", () => {
 ipcMain.handle("roll-dice", async (event, data) => {
   try {
     const resp = await axios.post(
-      "http://localhost:8000/roll",
+      `http://${PY_HOST}:${PY_PORT}/roll`,
       {}, // No data
       {
         headers: { "secret-token": SECRET_TOKEN },
@@ -141,3 +159,5 @@ ipcMain.handle("roll-dice", async (event, data) => {
     return;
   }
 });
+
+
